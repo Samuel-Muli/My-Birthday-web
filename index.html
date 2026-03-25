@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0a1a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>🎂 Birthday Surprise!</title>
+  <style>
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+    :root {
+      --gold:    #ffe066;
+      --pink:    #ff6eb4;
+      --purple:  #a855f7;
+      --teal:    #22d3ee;
+      --dark:    #0a0a1a;
+      --card-bg: rgba(26,26,58,0.88);
+      --card-bd: #3333aa;
+      --muted:   #9090cc;
+      --font:    'Courier New', Courier, monospace;
+    }
+
+    html, body {
+      width:100%; height:100%; overflow:hidden;
+      background:#000; color:#fff;
+      font-family: var(--font);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+
+    /* ── SHARED CANVAS ─────────────────────────────────── */
+    #bg-canvas, #confetti-canvas {
+      position:fixed; inset:0;
+      width:100%; height:100%;
+      pointer-events:none;
+    }
+    #bg-canvas       { z-index:1; }
+    #confetti-canvas { z-index:5; }
+
+    /* ── SCREENS ───────────────────────────────────────── */
+    .screen {
+      position:fixed; inset:0;
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      opacity:0; pointer-events:none;
+      transition: opacity 0.55s ease;
+    }
+    .screen.active { opacity:1; pointer-events:all; }
+
+    /* ── FLOATING EMOJI ────────────────────────────────── */
+    .floater {
+      position:fixed; font-size:1.5rem;
+      pointer-events:none; z-index:2;
+      will-change: transform;
+    }
+
+    /* ══════════════════════════════════════════════════════
+       WAITING SCREEN
+    ══════════════════════════════════════════════════════ */
+    #waiting { background:var(--dark); z-index:3; }
+
+    .w-inner {
+      position:relative; z-index:4;
+      text-align:center; padding:1rem;
+      width:100%; max-width:640px;
+    }
+    .w-title {
+      font-size: clamp(0.9rem, 3.5vw, 1.25rem);
+      font-weight:700; color:var(--gold);
+      letter-spacing:1px; margin-bottom:0.3rem;
+    }
+    .w-sub {
+      font-size: clamp(0.7rem, 2.5vw, 0.9rem);
+      color:var(--muted); margin-bottom:1.8rem;
+    }
+    .big-num {
+      font-size: clamp(5rem, 22vw, 9rem);
+      font-weight:700; line-height:1;
+      animation: pulse-col 3s ease-in-out infinite;
+    }
+    .big-lbl {
+      font-size: clamp(0.75rem, 2.5vw, 0.95rem);
+      color:#cc88aa; margin-bottom:1.8rem;
+    }
+    .stat-grid {
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap:10px; margin:0 0.5rem 1rem;
+    }
+    .stat-card {
+      background:var(--card-bg);
+      border:1px solid var(--card-bd);
+      border-radius:8px; padding:12px 6px;
+      cursor:pointer;
+      transition: background .15s, border-color .15s, transform .15s;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
+    .stat-card:active { background:rgba(37,37,80,.9); border-color:#6666ff; transform:translateY(-3px); }
+    .s-lbl { font-size:clamp(0.55rem,1.8vw,0.7rem); color:#7777bb; margin-bottom:4px; }
+    .s-val { font-size:clamp(0.72rem,2.2vw,0.88rem); font-weight:700; color:#ffdd88; }
+    .w-hint { font-size:0.6rem; color:#333355; margin-top:0.4rem; }
+
+    /* ══════════════════════════════════════════════════════
+       SPLASH
+    ══════════════════════════════════════════════════════ */
+    #splash { background:#000; z-index:10; cursor:pointer; }
+    .sp-emoji { font-size:5rem; margin-bottom:1.2rem; animation: bounce .9s ease-in-out infinite alternate; }
+    .sp-title { font-size:clamp(1.3rem,5vw,2rem); color:var(--gold); font-weight:700; margin-bottom:0.4rem; }
+    .sp-for   { font-size:clamp(0.85rem,3vw,1rem); color:var(--muted); margin-bottom:0.8rem; }
+    .sp-name  { color:var(--pink); font-weight:700; }
+    .sp-tap   { font-size:clamp(0.8rem,2.8vw,1rem); color:#666688; animation: blink 1.1s step-end infinite; }
+
+    /* ══════════════════════════════════════════════════════
+       COUNTDOWN
+    ══════════════════════════════════════════════════════ */
+    #countdown { background:#000; z-index:3; }
+    .cd-num {
+      font-size: clamp(7rem,38vw,14rem);
+      font-weight:700; color:var(--pink);
+      text-shadow: 0 0 50px rgba(255,110,180,.45);
+      animation: zoom-in .35s cubic-bezier(.17,.67,.35,1.3);
+    }
+
+    /* ══════════════════════════════════════════════════════
+       TEXT SCREEN
+    ══════════════════════════════════════════════════════ */
+    #text-screen { background:#000; z-index:3; }
+    .txt {
+      font-size: clamp(2.5rem,12vw,5rem);
+      font-weight:700; text-align:center;
+      line-height:1.15; padding:1rem;
+      animation: fade-up .5s ease forwards;
+      white-space: pre-line;
+    }
+    .txt-gold   { color:var(--gold); text-shadow:0 0 30px rgba(255,224,102,.35); }
+    .txt-pink   { color:var(--pink); text-shadow:0 0 40px rgba(255,110,180,.45); animation: fade-up .5s ease forwards, glow-pulse 1.6s ease-in-out infinite; }
+
+    /* ══════════════════════════════════════════════════════
+       SLIDESHOW
+    ══════════════════════════════════════════════════════ */
+    #slideshow { background:#000; z-index:3; }
+    .slide-img {
+      position:absolute; inset:0; width:100%; height:100%;
+      object-fit:contain; opacity:0;
+      transition: opacity .75s ease;
+    }
+    .slide-img.vis { opacity:1; }
+    .slide-ctrl {
+      position:absolute; bottom:1.2rem; left:50%;
+      transform:translateX(-50%); z-index:5;
+    }
+
+    /* ══════════════════════════════════════════════════════
+       VIDEO
+    ══════════════════════════════════════════════════════ */
+    #video-screen { background:#000; z-index:3; }
+    #main-video { width:100%; height:100%; object-fit:contain; }
+    .vid-ctrl {
+      position:absolute; bottom:1.2rem; left:50%;
+      transform:translateX(-50%); z-index:5;
+      display:flex; align-items:center; gap:10px;
+    }
+    .vid-ctrl span { font-size:0.85rem; color:var(--muted); }
+    input[type=range] {
+      width:130px; accent-color:var(--pink);
+      cursor:pointer;
+    }
+
+    /* ══════════════════════════════════════════════════════
+       FINALE
+    ══════════════════════════════════════════════════════ */
+    #finale { background:rgba(0,0,0,.55); z-index:6; }
+    .fin-inner {
+      text-align:center; padding:1.2rem;
+      width:100%; max-width:640px;
+    }
+    .fin-title {
+      font-size:clamp(1.1rem,4.5vw,1.7rem);
+      font-weight:700; color:var(--gold);
+      margin-bottom:0.3rem;
+      animation: glow-pulse 2s ease-in-out infinite;
+    }
+    .fin-age {
+      font-size:clamp(0.85rem,3.2vw,1.15rem);
+      color:var(--pink); margin-bottom:1.4rem;
+    }
+    .fin-grid {
+      display:grid;
+      grid-template-columns: repeat(3,1fr);
+      gap:10px; margin:0 0.25rem 1.2rem;
+    }
+    .fin-card {
+      background:var(--card-bg);
+      border:1px solid #5555cc;
+      border-radius:8px; padding:12px 6px;
+      cursor:pointer; backdrop-filter:blur(6px);
+      -webkit-backdrop-filter:blur(6px);
+      transition: background .15s, border-color .15s, transform .15s;
+    }
+    .fin-card:active { background:rgba(37,37,80,.92); border-color:#9999ff; transform:translateY(-3px); }
+
+    /* ══════════════════════════════════════════════════════
+       SHARED BUTTONS
+    ══════════════════════════════════════════════════════ */
+    .btn {
+      font-family:var(--font); cursor:pointer;
+      border:none; border-radius:7px;
+      padding:9px 18px; font-size:0.85rem;
+    }
+    #skip-btn {
+      position:fixed; top:max(1rem, env(safe-area-inset-top, 1rem));
+      right:1rem; z-index:20;
+      background:rgba(40,40,40,.85); color:#fff;
+      display:none;
+    }
+    #replay-btn {
+      background:#00c853; color:#000;
+      font-weight:700; font-size:1rem;
+      padding:12px 30px; display:none;
+      margin-top:0.5rem;
+    }
+    #fin-hint {
+      font-size:0.6rem; color:#333355;
+      margin-top:0.5rem;
+    }
+
+    /* ══════════════════════════════════════════════════════
+       KEYFRAMES
+    ══════════════════════════════════════════════════════ */
+    @keyframes pulse-col {
+      0%,100%{ color:#ff6eb4; text-shadow:0 0 20px rgba(255,110,180,.4); }
+      33%    { color:#ff9de0; text-shadow:0 0 28px rgba(255,157,224,.5); }
+      66%    { color:#d94fff; text-shadow:0 0 24px rgba(217,79,255,.4); }
+    }
+    @keyframes glow-pulse {
+      0%,100%{ opacity:1; }  50%{ opacity:.72; }
+    }
+    @keyframes zoom-in {
+      from{ transform:scale(.3); opacity:0; }
+      to  { transform:scale(1);  opacity:1; }
+    }
+    @keyframes bounce {
+      from{ transform:translateY(0); }
+      to  { transform:translateY(-18px); }
+    }
+    @keyframes blink {
+      0%,100%{ opacity:1; } 50%{ opacity:0; }
+    }
+    @keyframes fade-up {
+      from{ transform:translateY(22px); opacity:0; }
+      to  { transform:translateY(0);    opacity:1; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Canvases -->
+<canvas id="bg-canvas"></canvas>
+<canvas id="confetti-canvas"></canvas>
+
+<!-- Skip -->
+<button class="btn" id="skip-btn">Skip →</button>
+
+<!-- ── WAITING SCREEN ──────────────────────────────────── -->
+<div id="waiting" class="screen">
+  <div class="w-inner">
+    <div class="w-title"  id="w-title"></div>
+    <div class="w-sub"    id="w-sub"></div>
+    <div class="big-num"  id="w-days"></div>
+    <div class="big-lbl">days to go</div>
+    <div class="stat-grid" id="w-cards"></div>
+    <div class="w-hint">Tap any card to cycle through stats</div>
+  </div>
+</div>
+
+<!-- ── SPLASH ──────────────────────────────────────────── -->
+<div id="splash" class="screen">
+  <div class="sp-emoji">🎂</div>
+  <div class="sp-title">Birthday Surprise!</div>
+  <div class="sp-for">for <span class="sp-name" id="sp-name"></span></div>
+  <div class="sp-tap">Tap anywhere to begin</div>
+</div>
+
+<!-- ── COUNTDOWN ──────────────────────────────────────── -->
+<div id="countdown" class="screen">
+  <div class="cd-num" id="cd-num">5</div>
+</div>
+
+<!-- ── TEXT ───────────────────────────────────────────── -->
+<div id="text-screen" class="screen">
+  <div class="txt" id="txt-content"></div>
+</div>
+
+<!-- ── SLIDESHOW ──────────────────────────────────────── -->
+<div id="slideshow" class="screen">
+  <img class="slide-img" id="sl-a" src="" alt="">
+  <img class="slide-img" id="sl-b" src="" alt="">
+  <div class="slide-ctrl">
+    <button class="btn" id="sl-pause" style="background:rgba(40,40,40,.85);color:#fff;">⏸ Pause</button>
+  </div>
+</div>
+
+<!-- ── VIDEO ──────────────────────────────────────────── -->
+<div id="video-screen" class="screen">
+  <video id="main-video" playsinline preload="auto"></video>
+  <div class="vid-ctrl">
+    <span>🔊</span>
+    <input type="range" id="vol-slider" min="0" max="1" step="0.02" value="0.7">
+  </div>
+</div>
+
+<!-- ── FINALE ─────────────────────────────────────────── -->
+<div id="finale" class="screen">
+  <div class="fin-inner">
+    <div class="fin-title" id="fin-title"></div>
+    <div class="fin-age"   id="fin-age"></div>
+    <div class="fin-grid"  id="fin-cards"></div>
+    <button class="btn" id="replay-btn">▶  Play Again</button>
+    <div id="fin-hint">Tap any card to cycle stats</div>
+  </div>
+</div>
+
+<script>
+/* ════════════════════════════════════════════════════════
+   CONFIG  ← edit here
+════════════════════════════════════════════════════════ */
+const CFG = {
+  name:         "SAMUEL",
+  dob:          new Date(2000, 2, 25),          // March 29 2000
+  images:       ["aa.jpg","bb.jpg","cc.jpg"],
+  video:        "Rayvanny_Happy Birthday.mp4",
+  music:        "Rayvanny_Happy Birthday.mp3",
+  countdownFrom: 5,
+  slideMs:       3000,
+  textMs:        2500,
+};
+
+/* ════════════════════════════════════════════════════════
+   STATS
+════════════════════════════════════════════════════════ */
+function calcStats(dob) {
+  const now   = new Date(); now.setHours(0,0,0,0);
+  const d     = new Date(dob); d.setHours(0,0,0,0);
+
+  let next = new Date(now.getFullYear(), d.getMonth(), d.getDate());
+  if (next < now) next = new Date(now.getFullYear()+1, d.getMonth(), d.getDate());
+
+  const daysTo  = Math.round((next - now) / 864e5);
+  const turning = next.getFullYear() - d.getFullYear();
+  const isToday = daysTo === 0;
+
+  const days  = Math.floor((now - d) / 864e5);
+  const weeks = Math.floor(days / 7);
+  const hours = days * 24;
+  const secs  = days * 86400;
+
+  let months = (now.getFullYear()-d.getFullYear())*12 + (now.getMonth()-d.getMonth());
+  if (now.getDate() < d.getDate()) months--;
+
+  let years = now.getFullYear() - d.getFullYear();
+  if (now.getMonth()<d.getMonth() || (now.getMonth()===d.getMonth() && now.getDate()<d.getDate())) years--;
+
+  const nextStr = next.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+  return { isToday,daysTo,turning,years,months,weeks,days,hours,secs,nextStr };
+}
+
+const fmt = n => n.toLocaleString();
+
+/* ════════════════════════════════════════════════════════
+   STAR FIELD
+════════════════════════════════════════════════════════ */
+class StarField {
+  constructor(el) {
+    this.c   = el; this.ctx = el.getContext('2d');
+    this.stars=[]; this.on=false; this.raf=null;
+    this._resize(); window.addEventListener('resize',()=>this._resize());
+  }
+  _resize() {
+    this.c.width=innerWidth; this.c.height=innerHeight;
+    this.stars = Array.from({length:68},()=>({
+      x:Math.random()*this.c.width, y:Math.random()*this.c.height,
+      r:.6+Math.random()*2.2, phase:Math.random()*6.28,
+      spd:.03+Math.random()*.04,
+    }));
+  }
+  start() { this.on=true; this._tick(0); }
+  stop()  { this.on=false; if(this.raf){cancelAnimationFrame(this.raf);this.raf=null;} this.ctx.clearRect(0,0,this.c.width,this.c.height); }
+  _tick(t) {
+    if(!this.on) return;
+    const ctx=this.ctx; ctx.clearRect(0,0,this.c.width,this.c.height);
+    this.stars.forEach(s=>{
+      const a=.28+.72*(.5+.5*Math.sin(s.phase+t*s.spd));
+      ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+      ctx.fillStyle=`rgba(255,255,255,${a.toFixed(2)})`; ctx.fill();
+    });
+    this.raf=requestAnimationFrame(ts=>this._tick(ts*.001));
+  }
+}
+
+/* ════════════════════════════════════════════════════════
+   CONFETTI
+════════════════════════════════════════════════════════ */
+class Confetti {
+  constructor(el) {
+    this.c=el; this.ctx=el.getContext('2d');
+    this.pieces=[]; this.on=false; this.raf=null;
+    this.cols=['#ff4444','#ffdd00','#44ee44','#00bbff','#cc44ff','#ff8800','#ff69b4'];
+    window.addEventListener('resize',()=>{ this.c.width=innerWidth; this.c.height=innerHeight; });
+  }
+  start() {
+    this.c.width=innerWidth; this.c.height=innerHeight;
+    this.pieces=Array.from({length:150},()=>({
+      x:Math.random()*this.c.width, y:-10-Math.random()*this.c.height,
+      w:4+Math.random()*7, h:4+Math.random()*7,
+      col:this.cols[Math.floor(Math.random()*this.cols.length)],
+      spd:2+Math.random()*5, drift:(Math.random()-.5)*1.5,
+      ang:Math.random()*Math.PI*2, spin:(Math.random()-.5)*.14,
+    }));
+    this.on=true; this._draw();
+  }
+  stop() {
+    this.on=false;
+    if(this.raf){cancelAnimationFrame(this.raf);this.raf=null;}
+    this.ctx.clearRect(0,0,this.c.width,this.c.height);
+  }
+  _draw() {
+    if(!this.on) return;
+    const ctx=this.ctx, H=this.c.height, W=this.c.width;
+    ctx.clearRect(0,0,W,H);
+    this.pieces.forEach(p=>{
+      p.y+=p.spd; p.x+=p.drift; p.ang+=p.spin;
+      if(p.y>H+10){p.y=-10;p.x=Math.random()*W;}
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.ang);
+      ctx.fillStyle=p.col; ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+      ctx.restore();
+    });
+    this.raf=requestAnimationFrame(()=>this._draw());
+  }
+}
+
+/* ════════════════════════════════════════════════════════
+   FLOATING EMOJI
+════════════════════════════════════════════════════════ */
+class Floaters {
+  constructor() { this.items=[]; this.on=false; this.raf=null; this.syms=['🎂','🎁','🎈','🎊','🎉']; }
+  start() {
+    this.stop();
+    this.items=Array.from({length:8},()=>{
+      const el=document.createElement('div'); el.className='floater';
+      el.textContent=this.syms[Math.floor(Math.random()*this.syms.length)];
+      document.body.appendChild(el);
+      return { el, x:5+Math.random()*85, y:5+Math.random()*85,
+               dx:(Math.random()-.5)*.08, dy:(Math.random()-.5)*.06 };
+    });
+    this.on=true; this._tick();
+  }
+  stop() {
+    this.on=false;
+    if(this.raf){cancelAnimationFrame(this.raf);this.raf=null;}
+    this.items.forEach(i=>i.el.remove()); this.items=[];
+  }
+  _tick() {
+    if(!this.on) return;
+    this.items.forEach(f=>{
+      f.x+=f.dx; f.y+=f.dy;
+      if(f.x<1||f.x>95) f.dx*=-1;
+      if(f.y<2||f.y>93) f.dy*=-1;
+      f.el.style.left=f.x+'vw'; f.el.style.top=f.y+'vh';
+    });
+    this.raf=requestAnimationFrame(()=>this._tick());
+  }
+}
+
+/* ════════════════════════════════════════════════════════
+   MAIN APP
+════════════════════════════════════════════════════════ */
+class App {
+  constructor() {
+    this.stats    = calcStats(CFG.dob);
+    this.stars    = new StarField(document.getElementById('bg-canvas'));
+    this.confetti = new Confetti(document.getElementById('confetti-canvas'));
+    this.floaters = new Floaters();
+    this.audio    = null;
+    this.gen      = 0;        // increment on skip to cancel stale timeouts
+    this.stage    = -1;
+    this.slotA    = true;     // crossfade slot
+    this.slidePaused = false;
+    this.slideIdx    = 0;
+    this.wStatIdx    = 0;
+    this.fStatIdx    = 0;
+
+    this._bindStatic();
+    this.stats.isToday ? this._showSplash() : this._showWaiting();
+  }
+
+  /* ── Stat list ─────────────────────────────────────── */
+  _statList() {
+    const s=this.stats;
+    return [
+      {lbl:'Current age',  val:s.years+' years'},
+      {lbl:'Months lived', val:fmt(s.months)},
+      {lbl:'Weeks lived',  val:fmt(s.weeks)},
+      {lbl:'Days lived',   val:fmt(s.days)},
+      {lbl:'Hours lived',  val:fmt(s.hours)},
+      {lbl:'Seconds lived',val:fmt(s.secs)},
+    ];
+  }
+
+  /* ── Static bindings ───────────────────────────────── */
+  _bindStatic() {
+    document.getElementById('skip-btn')
+      .addEventListener('click', ()=>this._skip());
+    document.getElementById('replay-btn')
+      .addEventListener('click', ()=>this._replay());
+    document.getElementById('vol-slider')
+      .addEventListener('input', e=>{
+        document.getElementById('main-video').volume=+e.target.value;
+      });
+    document.getElementById('sl-pause')
+      .addEventListener('click', ()=>this._toggleSlidePause());
+    document.getElementById('main-video').addEventListener('ended', ()=>this._nextStage());
+    document.getElementById('main-video').addEventListener('error', ()=>this._nextStage());
+  }
+
+  /* ── Screen switching ─────────────────────────────── */
+  _show(id) {
+    ['waiting','splash','countdown','text-screen','slideshow','video-screen','finale']
+      .forEach(s=>{
+        const el=document.getElementById(s);
+        if(el) el.classList.toggle('active', s===id);
+      });
+  }
+
+  /* ── WAITING ──────────────────────────────────────── */
+  _showWaiting() {
+    const s=this.stats;
+    document.getElementById('w-title').textContent=`✨  ${CFG.name}'s Birthday Countdown  ✨`;
+    document.getElementById('w-sub').textContent  =`${s.nextStr}  —  turning ${s.turning}`;
+    document.getElementById('w-days').textContent  = s.daysTo;
+    this._renderWCards();
+    this._show('waiting');
+    this.stars.start();
+    this.floaters.start();
+  }
+  _renderWCards() {
+    const all=this._statList(), grid=document.getElementById('w-cards');
+    grid.innerHTML='';
+    for(let i=0;i<6;i++){
+      const {lbl,val}=all[(this.wStatIdx+i)%all.length];
+      const c=document.createElement('div'); c.className='stat-card';
+      c.innerHTML=`<div class="s-lbl">${lbl}</div><div class="s-val">${val}</div>`;
+      c.addEventListener('click',()=>{this.wStatIdx=(this.wStatIdx+1)%all.length;this._renderWCards();});
+      grid.appendChild(c);
+    }
+  }
+
+  /* ── SPLASH ───────────────────────────────────────── */
+  _showSplash() {
+    document.getElementById('sp-name').textContent=CFG.name;
+    this._show('splash');
+    const el=document.getElementById('splash');
+    const go=()=>{
+      el.removeEventListener('click',go);
+      this._startMusic();
+      document.getElementById('skip-btn').style.display='block';
+      this.stage=-1; this._nextStage();
+    };
+    el.addEventListener('click',go);
+  }
+
+  /* ── MUSIC ────────────────────────────────────────── */
+  _startMusic() {
+    try {
+      this.audio=new Audio(CFG.music);
+      this.audio.loop=true; this.audio.volume=.45;
+      this.audio.play().catch(()=>{});
+    } catch(e){}
+  }
+  _stopMusic() { if(this.audio){this.audio.pause();this.audio.currentTime=0;this.audio=null;} }
+
+  /* ── SKIP ─────────────────────────────────────────── */
+  _skip() {
+    this.gen++;                                    // invalidates pending timeouts
+    this.slidePaused=false;
+    const v=document.getElementById('main-video');
+    if(!v.paused){v.pause();v.src='';}
+    this._nextStage();
+  }
+
+  /* ── STAGE MACHINE ────────────────────────────────── */
+  _nextStage() {
+    this.stage++;
+    const g=++this.gen;
+    const guard=(fn,ms)=>setTimeout(()=>{ if(this.gen===g) fn(); },ms);
+
+    switch(this.stage) {
+      case 0: this._runCountdown(CFG.countdownFrom); break;
+      case 1: this._showText('HAPPY\nBIRTHDAY','txt-gold',()=>this._nextStage(), g); break;
+      case 2: this._showText(CFG.name,'txt-pink',()=>this._nextStage(), g); break;
+      case 3: this._runSlideshow(); break;
+      case 4: this._runVideo();     break;
+      default: this._showFinale();  break;
+    }
+  }
+
+  /* ── COUNTDOWN ────────────────────────────────────── */
+  _runCountdown(n) {
+    this._show('countdown');
+    const el=document.getElementById('cd-num');
+    const g=this.gen;
+    const tick=n=>{
+      if(this.gen!==g) return;
+      if(n<=0){this._nextStage();return;}
+      el.textContent=n;
+      el.style.animation='none'; el.offsetHeight;   // restart CSS
+      el.style.animation='';
+      setTimeout(()=>tick(n-1), 1000);
+    };
+    tick(n);
+  }
+
+  /* ── TEXT ─────────────────────────────────────────── */
+  _showText(text, cls, then, g) {
+    this._show('text-screen');
+    const el=document.getElementById('txt-content');
+    el.className='txt '+cls; el.textContent=text;
+    el.style.animation='none'; el.offsetHeight;
+    el.style.animation='';
+    setTimeout(()=>{ if(this.gen===g) then(); }, CFG.textMs);
+  }
+
+  /* ── SLIDESHOW ────────────────────────────────────── */
+  _runSlideshow() {
+    this.slideIdx=0;
+    this.slotA=true;
+    this.slidePaused=false;
+    document.getElementById('sl-pause').textContent='⏸ Pause';
+    const imgs=[...CFG.images].sort(()=>Math.random()-.5);
+    this._slideImages=imgs;
+    this._show('slideshow');
+    this._showSlide(0, this.gen);
+  }
+  _showSlide(idx, g) {
+    if(this.gen!==g) return;
+    if(idx>=this._slideImages.length){this._nextStage();return;}
+    this.slideIdx=idx;
+    const src=this._slideImages[idx];
+    const nextSlot=this.slotA?'sl-b':'sl-a';
+    const currSlot=this.slotA?'sl-a':'sl-b';
+    const imgNext=document.getElementById(nextSlot);
+    const imgCurr=document.getElementById(currSlot);
+    imgNext.src=src;
+    const onLoad=()=>{
+      if(this.gen!==g) return;
+      imgNext.classList.add('vis');
+      imgCurr.classList.remove('vis');
+      this.slotA=!this.slotA;
+      if(!this.slidePaused) {
+        setTimeout(()=>this._showSlide(idx+1,g), CFG.slideMs);
+      }
+    };
+    imgNext.onload=onLoad; imgNext.onerror=onLoad;
+  }
+  _toggleSlidePause() {
+    this.slidePaused=!this.slidePaused;
+    const btn=document.getElementById('sl-pause');
+    if(this.slidePaused) {
+      btn.textContent='▶ Resume';
+    } else {
+      btn.textContent='⏸ Pause';
+      this._showSlide(this.slideIdx+1, this.gen);
+    }
+  }
+
+  /* ── VIDEO ────────────────────────────────────────── */
+  _runVideo() {
+    this._show('video-screen');
+    this._stopMusic();
+    const v=document.getElementById('main-video');
+    v.src=CFG.video; v.volume=.7;
+    v.play().catch(()=>this._nextStage());
+  }
+
+  /* ── FINALE ───────────────────────────────────────── */
+  _showFinale() {
+    document.getElementById('skip-btn').style.display='none';
+    this._show('finale');
+    const s=this.stats;
+    document.getElementById('fin-title').textContent=`🎉  Happy Birthday, ${CFG.name}!  🎉`;
+    document.getElementById('fin-age').textContent  =`You are now ${s.turning} years old!`;
+    this.fStatIdx=0;
+    this._renderFCards();
+    document.getElementById('replay-btn').style.display='block';
+    // Short delay so the screen shows before confetti rains
+    setTimeout(()=>this.confetti.start(), 400);
+  }
+  _renderFCards() {
+    const all=this._statList(), grid=document.getElementById('fin-cards');
+    grid.innerHTML='';
+    for(let i=0;i<6;i++){
+      const {lbl,val}=all[(this.fStatIdx+i)%all.length];
+      const c=document.createElement('div'); c.className='fin-card';
+      c.innerHTML=`<div class="s-lbl">${lbl}</div><div class="s-val">${val}</div>`;
+      c.addEventListener('click',()=>{this.fStatIdx=(this.fStatIdx+1)%all.length;this._renderFCards();});
+      grid.appendChild(c);
+    }
+  }
+
+  /* ── REPLAY ───────────────────────────────────────── */
+  _replay() {
+    this.gen++;
+    this.confetti.stop();
+    this._stopMusic();
+    const v=document.getElementById('main-video');
+    v.pause(); v.src='';
+    document.getElementById('replay-btn').style.display='none';
+    document.getElementById('skip-btn').style.display='none';
+    this.stage=-1;
+    this._showSplash();
+  }
+}
+
+window.addEventListener('DOMContentLoaded', ()=> new App());
+</script>
+</body>
+</html>
