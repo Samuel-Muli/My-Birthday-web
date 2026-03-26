@@ -190,7 +190,7 @@ Any static host works. The easiest free options:
 - **Vercel** — `npx vercel` in the project folder
 - **Cloudflare Pages** — drag and drop at pages.cloudflare.com
 - **Firebase Hosting** — `firebase deploy`
--**onrender** - i personally use this and has been good
+- **onrender** - i personally use this and has been good
 
 ## Configuration
 
